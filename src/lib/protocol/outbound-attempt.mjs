@@ -12,6 +12,7 @@ import {
   stripInvalidThinkingBlocks,
   alignSamplingWithThinking,
   modelSupportsMidConversationSystem,
+  modelSupportsContextManagement,
 } from './anthropic-policy.mjs'
 import { liftMidConversationSystemMessages, promoteContentToBlocks } from './sanitize.mjs'
 import { applyThinkingDisplay, thinkingDisplayMode } from './thinking.mjs'
@@ -375,6 +376,12 @@ export function prepareCliHopBody(
   body = stripSubagentBilling(body)
   body = stripInvalidThinkingBlocks(body, { preserveThinkingBlocks })
   body = ensureOutputConfigSchema(body)
+  // The slot CLI turns Haiku 4.5 thinking off but forwards context_management, and
+  // this hop skips the beta sanitize, so clear_thinking would 400 upstream.
+  if (body.context_management != null && !modelSupportsContextManagement(body.model)) {
+    body = { ...body }
+    delete body.context_management
+  }
 
   if (preparedZero && !lean && !preserveSystem && !requestContext && body.cache_control != null) {
     body = materializeAutomaticCache(body)

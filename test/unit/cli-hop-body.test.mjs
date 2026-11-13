@@ -294,7 +294,9 @@ test('prepareCliHopBody repaired does not refill thinking after signature downgr
   ])
 })
 
-test('prepareCliHopBody leaves Haiku thinking and context management untouched', () => {
+// The slot CLI turns Haiku 4.5 thinking off; a forwarded clear_thinking edit then
+// 400s upstream ("requires thinking to be enabled or adaptive").
+test('prepareCliHopBody leaves Haiku thinking untouched and drops context management', () => {
   const body = prepareCliHopBody({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 512,
@@ -303,8 +305,33 @@ test('prepareCliHopBody leaves Haiku thinking and context management untouched',
     messages: [{ role: 'user', content: 'hi' }],
   })
   assert.equal(body.thinking.type, 'adaptive')
-  assert.deepEqual(body.context_management, { edits: [{ type: 'clear_thinking_20251015' }] })
+  assert.equal(body.context_management, undefined)
   assert.equal(body.output_config, undefined)
+})
+
+test('prepareCliHopBody drops Haiku context management with enabled thinking', () => {
+  const body = prepareCliHopBody({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 4000,
+    thinking: { type: 'enabled', budget_tokens: 2000 },
+    context_management: { edits: [{ type: 'clear_thinking_20251015', keep: 'all' }] },
+    messages: [{ role: 'user', content: '1+1=?' }],
+  })
+  assert.equal(body.thinking.type, 'enabled')
+  assert.equal(body.thinking.budget_tokens, 2000)
+  assert.equal(body.context_management, undefined)
+})
+
+test('prepareCliHopBody keeps caller context management on supported models', () => {
+  const edits = [{ type: 'clear_thinking_20251015', keep: 'all' }]
+  const body = prepareCliHopBody({
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 4000,
+    thinking: { type: 'enabled', budget_tokens: 2000 },
+    context_management: { edits },
+    messages: [{ role: 'user', content: 'hi' }],
+  })
+  assert.deepEqual(body.context_management, { edits })
 })
 
 function withoutMessageCache(body) {
